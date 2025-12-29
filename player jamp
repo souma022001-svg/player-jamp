@@ -1,49 +1,60 @@
-return function(player, power)
+-- ジャンプ力を変更する関数
+local function setJumpPower(player, power)
     local character = player.Character or player.CharacterAdded:Wait()
     local humanoid = character:WaitForChild("Humanoid")
     humanoid.JumpPower = power or 590
     print(player.Name .. "のジャンプ力を" .. humanoid.JumpPower .. "に変更しました！")
 end
+
 local player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 
 local char = player.Character or player.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
 
-local defaultJP, boostedJP = humanoid.JumpPower, 400
-local isBoosted, isInfinite = false, false
+local defaultJP = humanoid.JumpPower
+local boostedJP = 400
+local isBoosted = false
+local isInfinite = false
 
--- GUI
+-- GUIの作成
 local gui = Instance.new("ScreenGui", player.PlayerGui)
+
 local button = Instance.new("TextButton")
 button.Size = UDim2.new(0, 250, 0, 50)
 button.Position = UDim2.new(0, 50, 0, 50)
 button.Text = "こうきステップOFF / 無限ジャンプOFF"
 button.TextScaled = true
-button.BackgroundColor3 = Color3.fromRGB(0,170,255)
-button.TextColor3 = Color3.fromRGB(255,255,255)
+button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
 button.Active = true
 button.Draggable = true
 button.Parent = gui
 
--- ボタンで切替
+-- ボタンが押されたときの処理
 button.MouseButton1Click:Connect(function()
     isBoosted = not isBoosted
     humanoid.JumpPower = isBoosted and boostedJP or defaultJP
     isInfinite = not isInfinite
-    button.Text = ("こうきステップ%s / 無限ジャンプ%s"):format(isBoosted and "ON" or "OFF", isInfinite and "ON" or "OFF")
+    button.Text = string.format("こうきステップ%s / 無限ジャンプ%s",
+        isBoosted and "ON" or "OFF",
+        isInfinite and "ON" or "OFF")
 end)
 
--- 無限ジャンプ
+-- 無限ジャンプの処理
 UserInputService.InputBegan:Connect(function(input, processed)
     if not processed and isInfinite and input.KeyCode == Enum.KeyCode.Space then
         humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
 
--- リスポーン対応
+-- プレイヤーがリスポーンしたときの処理
 player.CharacterAdded:Connect(function(c)
     char = c
     humanoid = char:WaitForChild("Humanoid")
-    if isBoosted then humanoid.JumpPower = boostedJP end
+    if isBoosted then
+        humanoid.JumpPower = boostedJP
+    else
+        humanoid.JumpPower = defaultJP
+    end
 end)
