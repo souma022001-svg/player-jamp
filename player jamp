@@ -1,60 +1,177 @@
 -- ジャンプ力を変更する関数
-local function setJumpPower(player, power)
-    local character = player.Character or player.CharacterAdded:Wait()
+local function setJumpPower(power)
+    local character = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
     local humanoid = character:WaitForChild("Humanoid")
-    humanoid.JumpPower = power or 590
-    print(player.Name .. "のジャンプ力を" .. humanoid.JumpPower .. "に変更しました！")
+    humanoid.JumpPower = power
 end
 
-local player = game.Players.LocalPlayer
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
 
-local char = player.Character or player.CharacterAdded:Wait()
-local humanoid = char:WaitForChild("Humanoid")
+local defaultJumpPower = 50
+local boostedJumpPower = 400
+local isHighJump = false
+local isInfiniteJump = false
 
-local defaultJP = humanoid.JumpPower
-local boostedJP = 400
-local isBoosted = false
-local isInfinite = false
+-- GUI作成
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "JumpControlGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- GUIの作成
-local gui = Instance.new("ScreenGui", player.PlayerGui)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 170)
+mainFrame.Position = UDim2.new(0.5, -140, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
 
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(0, 250, 0, 50)
-button.Position = UDim2.new(0, 50, 0, 50)
-button.Text = "こうきステップOFF / 無限ジャンプOFF"
-button.TextScaled = true
-button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Active = true
-button.Draggable = true
-button.Parent = gui
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 12)
+uiCorner.Parent = mainFrame
 
--- ボタンが押されたときの処理
-button.MouseButton1Click:Connect(function()
-    isBoosted = not isBoosted
-    humanoid.JumpPower = isBoosted and boostedJP or defaultJP
-    isInfinite = not isInfinite
-    button.Text = string.format("こうきステップ%s / 無限ジャンプ%s",
-        isBoosted and "ON" or "OFF",
-        isInfinite and "ON" or "OFF")
-end)
+-- タイトル
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Text = "ジャンプコントロール"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+title.Parent = mainFrame
 
--- 無限ジャンプの処理
-UserInputService.InputBegan:Connect(function(input, processed)
-    if not processed and isInfinite and input.KeyCode == Enum.KeyCode.Space then
-        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end)
+-- 高ジャンプボタン
+local highJumpButton = Instance.new("TextButton")
+highJumpButton.Name = "HighJumpButton"
+highJumpButton.Size = UDim2.new(0.9, 0, 0, 45)
+highJumpButton.Position = UDim2.new(0.05, 0, 0.28, 0)
+highJumpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+highJumpButton.Text = "こうきステップ : OFF"
+highJumpButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+highJumpButton.Font = Enum.Font.SourceSansBold
+highJumpButton.TextSize = 18
+highJumpButton.Parent = mainFrame
 
--- プレイヤーがリスポーンしたときの処理
-player.CharacterAdded:Connect(function(c)
-    char = c
-    humanoid = char:WaitForChild("Humanoid")
-    if isBoosted then
-        humanoid.JumpPower = boostedJP
+local highCorner = Instance.new("UICorner")
+highCorner.CornerRadius = UDim.new(0, 8)
+highCorner.Parent = highJumpButton
+
+-- 無限ジャンプボタン
+local infJumpButton = Instance.new("TextButton")
+infJumpButton.Name = "InfJumpButton"
+infJumpButton.Size = UDim2.new(0.9, 0, 0, 45)
+infJumpButton.Position = UDim2.new(0.05, 0, 0.58, 0)
+infJumpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+infJumpButton.Text = "無限ジャンプ : OFF"
+infJumpButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+infJumpButton.Font = Enum.Font.SourceSansBold
+infJumpButton.TextSize = 18
+infJumpButton.Parent = mainFrame
+
+local infCorner = Instance.new("UICorner")
+infCorner.CornerRadius = UDim.new(0, 8)
+infCorner.Parent = infJumpButton
+
+-- Closeボタン（右上）
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 60, 0, 30)
+closeButton.Position = UDim2.new(1, -70, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+closeButton.Text = "Close"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 16
+closeButton.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeButton
+
+-- 機能OFFにする関数（Close時に使用）
+local function turnOffAllFeatures()
+    isHighJump = false
+    isInfiniteJump = false
+    
+    -- ジャンプ力をデフォルトに戻す
+    setJumpPower(defaultJumpPower)
+    
+    -- ボタンの見た目を初期状態にリセット（念のため）
+    highJumpButton.Text = "こうきステップ : OFF"
+    highJumpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    
+    infJumpButton.Text = "無限ジャンプ : OFF"
+    infJumpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+end
+
+-- ボタン処理
+highJumpButton.MouseButton1Click:Connect(function()
+    isHighJump = not isHighJump
+    if isHighJump then
+        setJumpPower(boostedJumpPower)
+        highJumpButton.Text = "こうきステップ : ON"
+        highJumpButton.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
     else
-        humanoid.JumpPower = defaultJP
+        setJumpPower(defaultJumpPower)
+        highJumpButton.Text = "こうきステップ : OFF"
+        highJumpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
     end
 end)
+
+infJumpButton.MouseButton1Click:Connect(function()
+    isInfiniteJump = not isInfiniteJump
+    if isInfiniteJump then
+        infJumpButton.Text = "無限ジャンプ : ON"
+        infJumpButton.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+    else
+        infJumpButton.Text = "無限ジャンプ : OFF"
+        infJumpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    end
+end)
+
+-- Closeボタン処理：全てOFFにしてGUIを**完全に削除**
+closeButton.MouseButton1Click:Connect(function()
+    turnOffAllFeatures()          -- 全ての機能をOFF
+    
+    -- GUIを完全に画面から削除
+    screenGui:Destroy()
+    
+    print("ジャンプコントロールGUIを完全に閉じました")
+end)
+
+-- 無限ジャンプの実装
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if isInfiniteJump and input.KeyCode == Enum.KeyCode.Space then
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Jumping then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end
+end)
+
+-- キャラ再生成時の対応（状態を維持）
+player.CharacterAdded:Connect(function(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    if isHighJump then
+        humanoid.JumpPower = boostedJumpPower
+    else
+        humanoid.JumpPower = defaultJumpPower
+    end
+end)
+
+-- 初回設定
+if player.Character then
+    local humanoid = player.Character:WaitForChild("Humanoid")
+    defaultJumpPower = humanoid.JumpPower
+    if isHighJump then
+        humanoid.JumpPower = boostedJumpPower
+    end
+end
+
+print("ジャンプコントロールGUI（Closeで完全削除）が起動しました！")
